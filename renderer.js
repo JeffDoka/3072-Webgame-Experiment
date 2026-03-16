@@ -35,11 +35,23 @@ let onAnimDone = null;
 // ---- Hit-areas (for input module) ----
 // Populated each render so input.js can do hit-testing
 export let hitAreas = {
-  powerups: [],   // [{name, x,y,w,h}]
+  powerups: [],   // [{name, x,y,w,h}]  — absolute canvas coords
   quitBtn:  null, // {x,y,w,h}
   cells:    [],   // [{row,col,x,y,w,h}] — used during TARGETING
-  arrows:   [],   // [{dir, x,y,w,h}] — directional bumper buttons
+  arrows:   [],   // [{dir, x,y,w,h}]    — directional bumper buttons
+  barRect:  null, // {x,y,w,h}           — full powerup bar area for drag detection
 };
+
+// ---- Powerup bar scroll state ----
+let barScrollX   = 0;
+const BTN_W      = 82;   // fixed button width regardless of board width
+const BTN_GAP    = 8;
+const BAR_PAD    = 10;   // inner left/right padding
+
+export function setBarScroll(x) {
+  barScrollX = x; // clamped in drawPowerupBar each frame
+}
+export function getBarScrollX() { return barScrollX; }
 
 // ============================================================
 // PUBLIC API
@@ -93,6 +105,8 @@ export function render(timestamp) {
     drawTargetingOverlay(layout);
   }
 
+  drawPowerDropToast(layout, timestamp);
+
   // Advance phase
   if (phase !== 'idle' && t >= 1) {
     nextPhase(timestamp);
@@ -121,6 +135,14 @@ export function flashRearrange(callback) {
   onAnimDone = callback;
   setPhase('spawn', CONFIG.ANIM_SPAWN_MS);
   spawnCell = null; // flash whole board
+}
+
+// ---- Power-drop toast notification ----
+let powerDropToast = null; // { text, alpha, startTime }
+
+export function showPowerDrop(powerName) {
+  const labels = { LASER: '⚡ Laser', BOMB: '💣 Bomb', REARRANGE: '🔀 Shuffle', DOUBLE: '×2 Double', UNDO: '↩ Undo' };
+  powerDropToast = { text: `+1 ${labels[powerName] || powerName}`, alpha: 1, startTime: performance.now() };
 }
 
 export function getLayout() {
@@ -436,82 +458,136 @@ function drawTile(x, y, size, value, scale = 1, alpha = 1) {
 // ============================================================
 
 function drawPowerupBar(layout) {
-  const { w, boardY, boardSize, boardX, h, POWERBAR_H } = layout;
+  const { boardX, boardSize, h, POWERBAR_H } = layout;
   const barW = boardSize;
-  const barH = Math.min(68, POWERBAR_H - 10);
+  const barH = Math.min(70, POWERBAR_H - 8);
   const barX = boardX;
-  // Position bar at: board bottom + bottom-bumper + gap + centering
-  // Powerbar lives in the bottom zone: centred in POWERBAR_H strip at screen bottom
   const barY = h - POWERBAR_H - 8 + (POWERBAR_H - barH) / 2;
 
-  // Glass pill background
+  // Expose bar rect for drag detection in input.js
+  hitAreas.barRect = { x: barX, y: barY, w: barW, h: barH };
+
+  // ---- Powerup definitions (extensible) ----
+  const ALL_POWERS = [
+    { name: 'LASER',     icon: '⚡', label: 'LASER'   },
+    { name: 'BOMB',      icon: '💣', label: 'BOMB'    },
+    { name: 'REARRANGE', icon: '🔀', label: 'SHUFFLE' },
+    { name: 'DOUBLE',    icon: '×2', label: 'DOUBLE'  },
+    { name: 'UNDO',      icon: '↩',  label: 'UNDO'    },
+  ];
+
+  // Sort: non-zero charges first (desc), then zero charges
+  const sorted = [...ALL_POWERS].sort((a, b) => {
+    const ca = state.powers[a.name] ?? 0;
+    const cb = state.powers[b.name] ?? 0;
+    if ((ca > 0) !== (cb > 0)) return ca > 0 ? -1 : 1; // non-zero before zero
+    return cb - ca; // higher charges first within same group
+  });
+
+  const btnH      = barH - 14;           // button height leaves room for scroll indicator
+  const contentW  = sorted.length * BTN_W + (sorted.length - 1) * BTN_GAP + 2 * BAR_PAD;
+  const maxScroll = Math.max(0, contentW - barW);
+
+  // Clamp scroll
+  barScrollX = Math.max(0, Math.min(barScrollX, maxScroll));
+
+  // ---- Bar glass background ----
   ctx.save();
-  roundRect(ctx, barX, barY, barW, barH, 16);
-  ctx.fillStyle = 'rgba(187,173,160,0.35)';
+  roundRect(ctx, barX, barY, barW, barH, 14);
+  ctx.fillStyle = 'rgba(187,173,160,0.32)';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
   ctx.lineWidth   = 1;
   ctx.stroke();
-  ctx.restore();
 
-  const powers  = ['LASER', 'BOMB', 'REARRANGE'];
-  const icons   = ['⚡', '💣', '🔀'];
-  const labels  = ['LASER', 'BOMB', 'SHUFFLE'];
-  const btnW    = (barW - 32) / 3;
-  const btnH    = 62;
-  const gapBtn  = 8;
+  // ---- Clip to bar interior so buttons don't bleed over edges ----
+  roundRect(ctx, barX + 1, barY + 1, barW - 2, barH - 2, 13);
+  ctx.clip();
 
   hitAreas.powerups = [];
 
-  powers.forEach((name, i) => {
-    const bX      = barX + 8 + i * (btnW + gapBtn);
-    const bY      = barY + (barH - btnH) / 2;
-    const charges = state.powers[name] ?? 0;
-    const active  = state.activePower === name;
+  sorted.forEach((p, i) => {
+    const charges = state.powers[p.name] ?? 0;
+    const active  = state.activePower === p.name;
     const empty   = charges <= 0;
 
-    // Button bg
-    roundRect(ctx, bX, bY, btnW, btnH, 10);
-    if (active) {
-      ctx.fillStyle = CONFIG.COLORS.TEXT_DARK;
-    } else if (empty) {
-      ctx.fillStyle = 'rgba(0,0,0,0.07)';
-    } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    }
+    // Absolute X in canvas space (accounting for scroll)
+    const bX = barX + BAR_PAD + i * (BTN_W + BTN_GAP) - barScrollX;
+    const bY = barY + (barH - btnH) / 2 - 3; // shift up slightly for scroll indicator
+
+    // Skip if entirely outside bar
+    if (bX + BTN_W < barX || bX > barX + barW) return;
+
+    // Button background
+    roundRect(ctx, bX, bY, BTN_W, btnH, 10);
+    ctx.fillStyle = active ? CONFIG.COLORS.TEXT_DARK
+                  : empty  ? 'rgba(0,0,0,0.06)'
+                           : 'rgba(255,255,255,0.52)';
     ctx.fill();
 
-    ctx.globalAlpha = empty ? 0.35 : 1;
+    ctx.globalAlpha = empty ? 0.32 : 1;
 
     // Icon
-    ctx.font         = `${Math.round(btnH * 0.34)}px ${CONFIG.FONT_FAMILY}`;
+    ctx.fillStyle    = active ? CONFIG.COLORS.TEXT_LIGHT : CONFIG.COLORS.TEXT_DARK;
+    ctx.font         = `${Math.round(btnH * 0.36)}px ${CONFIG.FONT_FAMILY}`;
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(icons[i], bX + btnW / 2, bY + btnH * 0.38);
+    ctx.fillText(p.icon, bX + BTN_W / 2, bY + btnH * 0.38);
 
     // Label
+    ctx.font      = `bold 8px ${CONFIG.FONT_FAMILY}`;
     ctx.fillStyle = active ? CONFIG.COLORS.TEXT_LIGHT : CONFIG.COLORS.TEXT_DARK;
-    ctx.font      = `bold 9px ${CONFIG.FONT_FAMILY}`;
-    ctx.fillText(labels[i], bX + btnW / 2, bY + btnH * 0.68);
+    ctx.fillText(p.label, bX + BTN_W / 2, bY + btnH * 0.70);
 
-    // Charge count badge
+    ctx.globalAlpha = 1;
+
+    // Charge badge
     if (charges > 0) {
-      const bR  = 9;
-      const bCX = bX + btnW - bR + 2;
-      const bCY = bY + bR - 2;
+      const bR  = 8;
+      const bCX = bX + BTN_W - bR + 1;
+      const bCY = bY + bR - 1;
       ctx.beginPath();
       ctx.arc(bCX, bCY, bR, 0, Math.PI * 2);
       ctx.fillStyle = active ? CONFIG.COLORS.TEXT_LIGHT : CONFIG.COLORS.BOARD_BG;
       ctx.fill();
       ctx.fillStyle = active ? CONFIG.COLORS.TEXT_DARK : CONFIG.COLORS.TEXT_LIGHT;
-      ctx.font      = `bold 11px ${CONFIG.FONT_FAMILY}`;
+      ctx.font      = `bold 10px ${CONFIG.FONT_FAMILY}`;
       ctx.fillText(String(charges), bCX, bCY);
     }
 
-    ctx.globalAlpha = 1;
-
-    hitAreas.powerups.push({ name, x: bX, y: bY, w: btnW, h: btnH });
+    // Register hit area only if button centre is within bar bounds
+    const cx = bX + BTN_W / 2;
+    if (cx >= barX && cx <= barX + barW) {
+      hitAreas.powerups.push({ name: p.name, x: bX, y: bY, w: BTN_W, h: btnH });
+    }
   });
+
+  ctx.restore(); // end clip
+
+  // ---- Scroll indicator (only if scrollable) ----
+  if (maxScroll > 0) {
+    const indicatorY  = barY + barH - 5;
+    const trackW      = barW - 24;
+    const trackX      = barX + 12;
+    const thumbW      = Math.max(28, trackW * (barW / contentW));
+    const thumbX      = trackX + (barScrollX / maxScroll) * (trackW - thumbW);
+
+    // Track
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle   = CONFIG.COLORS.TEXT_DARK;
+    ctx.beginPath();
+    ctx.roundRect(trackX, indicatorY, trackW, 3, 1.5);
+    ctx.fill();
+
+    // Thumb
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle   = CONFIG.COLORS.TEXT_DARK;
+    ctx.beginPath();
+    ctx.roundRect(thumbX, indicatorY, thumbW, 3, 1.5);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 // ============================================================
@@ -536,7 +612,7 @@ function drawTargetingOverlay(layout) {
       const { x, y } = cellTL(r, c, layout);
       const isEmpty  = state.grid[r][c] === 0;
 
-      // LASER & BOMB need a non-empty tile; BOMB can also be centred on empty
+      // LASER & DOUBLE need non-empty; BOMB can target any cell
       const valid = (power === 'BOMB') || !isEmpty;
       if (!valid) continue;
 
@@ -560,6 +636,45 @@ function drawTargetingOverlay(layout) {
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('Tap a tile  ·  Swipe to cancel', boardX + boardSize / 2, boardY - 14);
+}
+
+// ============================================================
+// DRAWING — Power-drop Toast
+// ============================================================
+
+function drawPowerDropToast(layout, timestamp) {
+  if (!powerDropToast) return;
+  const elapsed = timestamp - powerDropToast.startTime;
+  const DURATION = 1800;
+  if (elapsed >= DURATION) { powerDropToast = null; return; }
+
+  const progress = elapsed / DURATION;
+  const alpha    = progress < 0.6 ? 1 : 1 - (progress - 0.6) / 0.4;
+  const rise     = -30 * progress; // float upward
+
+  const { boardX, boardSize, boardY } = layout;
+  const cx = boardX + boardSize / 2;
+  const cy = boardY + boardSize / 2 + rise;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Pill background
+  const PAD_X = 16, PAD_Y = 8;
+  ctx.font = `bold 14px ${CONFIG.FONT_FAMILY}`;
+  const textW = ctx.measureText(powerDropToast.text).width;
+  const pillW = textW + PAD_X * 2;
+  const pillH = 30;
+  roundRect(ctx, cx - pillW / 2, cy - pillH / 2, pillW, pillH, 15);
+  ctx.fillStyle = CONFIG.COLORS.TEXT_DARK;
+  ctx.fill();
+
+  ctx.fillStyle    = CONFIG.COLORS.TEXT_LIGHT;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(powerDropToast.text, cx, cy);
+
+  ctx.restore();
 }
 
 // ============================================================

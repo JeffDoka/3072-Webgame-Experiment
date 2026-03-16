@@ -40,6 +40,9 @@ export const state = {
   minOccupiedCells: 16,   // for Clean Sweep: lowest count in any single turn
   onlyLaserUsed:    true, // stays true until non-laser power used
 
+  // ---- Undo history (stores snapshots for UNDO powerup) ----
+  undoStack: [],  // [{grid, score, totalMoves, tileAges}] — max 3 deep
+
   // ---- Admin ----
   adminTapCount:  0,
   adminUnlocked:  false,
@@ -87,6 +90,7 @@ export function startNewGame() {
 
   state.minOccupiedCells = N * N;
   state.onlyLaserUsed    = true;
+  state.undoStack        = [];
 
   state.screen = 'PLAYING';
 }

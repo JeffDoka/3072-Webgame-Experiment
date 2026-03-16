@@ -195,6 +195,13 @@ export function applyLaser(grid, row, col) {
   return newGrid;
 }
 
+// Apply Double: double a single tile's value
+export function applyDouble(grid, row, col) {
+  const newGrid = grid.map(r => [...r]);
+  if (newGrid[row][col] !== 0) newGrid[row][col] *= 2;
+  return newGrid;
+}
+
 // Apply Bomb: zero out 3×3 area centered on (row, col)
 export function applyBomb(grid, row, col) {
   const N = grid.length;

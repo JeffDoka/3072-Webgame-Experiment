@@ -399,6 +399,45 @@ html, body {
 .tag-cleansweep { background: #74b9ff; color: #2d3436; }
 .tag-surgeon    { background: #a29bfe; }
 
+/* ---- Tag tooltips ---- */
+.tag-pill,
+.tag-pill-lg {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tag-pill::after,
+.tag-pill-lg::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.85);
+  background: rgba(30,26,22,0.94);
+  color: #f9f6f2;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms, transform 150ms;
+  z-index: 200;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.32);
+  letter-spacing: 0.1px;
+  max-width: 200px;
+  white-space: normal;
+  text-align: center;
+}
+
+.tag-pill.tooltip-open::after,
+.tag-pill-lg.tooltip-open::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
 /* ============================================================
    SETTINGS SCREEN
    ============================================================ */

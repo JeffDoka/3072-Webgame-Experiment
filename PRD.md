@@ -1,9 +1,9 @@
 # PRD: 2048 Web Game — "The Master Spec"
 
-**Version:** 4.0  
-**Date:** 2026-03-13  
-**Author:** Jeff Boss  
-**Status:** Approved / Finalized  
+**Version:** 5.0
+**Date:** 2026-03-16
+**Author:** Jeff Boss
+**Status:** Approved / Finalized
 
 ---
 
@@ -67,9 +67,14 @@ To ensure 2048 feels correct, the `logic.js` must follow this sequence for a mov
 4. **Compare:** If the grid changed, the move is valid → spawn a new tile.
 
 ### 5.2 Powerup Application Logic
-- **Laser:** `grid[y][x] = 0`. No shift triggered.
-- **Bomb:** `for (dy=-1..1) for (dx=-1..1) if (withinBoard) grid[y+dy][x+dx] = 0`.
-- **Rearrange:** `flatten(grid) -> shuffle() -> unflatten(grid)`.
+- **Laser:** `grid[y][x] = 0`. No shift triggered. Requires non-empty cell.
+- **Bomb:** `for (dy=-1..1) for (dx=-1..1) if (withinBoard) grid[y+dy][x+dx] = 0`. 3×3 area wipe.
+- **Rearrange:** `flatten(grid) -> shuffle() -> unflatten(grid)`. Fisher-Yates.
+- **Double:** `grid[y][x] *= 2`. Doubles a single tile's value. Requires non-empty cell. Enters targeting mode.
+- **Undo:** Restores the last snapshot from the undo stack (up to 3 moves back). Instant — no targeting.
+
+### 5.3 Power Drop System
+Every `CONFIG.POWER_DROP_EVERY` (10) valid moves, a random powerup charge is granted. A brief animated toast notification floats up from the centre of the board indicating the drop (e.g., "+1 ⚡ Laser"). The drop occurs regardless of whether powerups are currently being used.
 
 ---
 
@@ -120,12 +125,20 @@ export const CONFIG = {
   ANIM_MERGE_MS: 120,
   ANIM_TAG_STAGGER: 100,
   
+  // Timings (additional)
+  SCORE_ANIM_MS: 300,
+
   // Powerup Charges
   POWERS: {
     LASER: 2,
     BOMB: 1,
-    REARRANGE: 1
+    REARRANGE: 1,
+    DOUBLE: 1,    // doubles a single tile's value
+    UNDO: 1,      // rewinds one move (up to 3 undos stored)
   },
+
+  // Power-drop cadence
+  POWER_DROP_EVERY: 10,  // every N valid moves, grant a random powerup charge
 
   // Tag Thresholds
   FOSSIL_TURNS: 11,
@@ -164,9 +177,18 @@ Tags are evaluated in `tags.js` at the moment of Game Over.
 - **Scaling:** For numbers > 999, reduce font size by 20% per digit.
 
 ### 8.2 Powerup Bar
-- Located below the board.
-- Glassmorphism effect: `rgba(255,255,255,0.1)` with `backdrop-filter: blur(10px)`.
-- **Targeting Visual:** When active, the board gets a `rgba(0,0,0,0.5)` overlay. Target cells pulse with a white stroke.
+- Located below the board. Drawn on canvas.
+- Glassmorphism effect: `rgba(255,255,255,0.1)` with a soft rounded-rect background.
+- **Scrollable:** The bar is horizontally drag-scrollable to accommodate 5+ powerups. Scroll indicator (track + thumb) shown when content overflows.
+- **Sort order:** Powerups with remaining charges appear first (sorted by charge count desc); depleted powerups are scrolled off the visible area to the right.
+- **Targeting Visual:** When active, the board gets a `rgba(0,0,0,0.5)` overlay. Valid target cells pulse with a white stroke.
+- **Power Drop Toast:** When a drop is awarded, a pill-shaped toast floats up from the board centre and fades out over ~1.8s.
+
+### 8.3 Tag Tooltips
+- Tag pills in the Game Over overlay and History screen are tappable.
+- First tap reveals a dark tooltip above the pill describing what earned it (e.g., "No powerups used this game").
+- Second tap (or tapping a different pill) dismisses the tooltip.
+- CSS-driven: tooltip text sourced from `data-tooltip` attribute, toggled via `.tooltip-open` class.
 
 ### 8.3 Win Screen
 - Full-screen overlay.
@@ -209,10 +231,11 @@ Tags are evaluated in `tags.js` at the moment of Game Over.
 
 ---
 
-## 12. Future Roadmap (v5.0+)
+## 12. Future Roadmap (v6.0+)
 - **Skins:** "Retro", "Neon", "Crystal Chaos" (gem icons).
 - **Sound:** Tactile clicks for slides, "ding" for merges.
-- **Undo:** A move-history stack (limited to 3 undos).
+- **Online Leaderboard:** Optional cloud sync of daily bests.
+- **Combo Multiplier:** Consecutive merges in a single move grant a score bonus.
 
 ---
 

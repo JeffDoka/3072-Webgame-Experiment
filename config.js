@@ -53,7 +53,12 @@ export const CONFIG = {
     LASER:     2,
     BOMB:      1,
     REARRANGE: 1,
+    DOUBLE:    1,   // doubles a single tile's value
+    UNDO:      1,   // rewinds one move
   },
+
+  // ---- Power-up drop cadence ----
+  POWER_DROP_EVERY: 10,  // every N moves, grant a random powerup charge
 
   // ---- Tag Thresholds ----
   FOSSIL_TURNS:    11,

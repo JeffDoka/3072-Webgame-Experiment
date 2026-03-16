@@ -236,6 +236,15 @@ function handleSwipe(direction) {
   const { newGrid, moved, moves, scoreIncrement } = logic.slide(state.grid, direction);
   if (!moved) return;
 
+  // Save undo snapshot BEFORE applying the move (max 3 deep)
+  state.undoStack.push({
+    grid:       state.grid.map(r => [...r]),
+    score:      state.score,
+    totalMoves: state.totalMoves,
+    tileAges:   state.tileAges.map(r => [...r]),
+  });
+  if (state.undoStack.length > 3) state.undoStack.shift();
+
   // Compute which cells got merge results (for age reset)
   const mergeResults = moves
     .filter(m => m.isMergeResult)
@@ -254,6 +263,14 @@ function handleSwipe(direction) {
 
   state.totalMoves++;
   state.turn++;
+
+  // Power drop every N moves
+  if (state.powersEnabled && state.totalMoves % CONFIG.POWER_DROP_EVERY === 0) {
+    const allPowers = ['LASER', 'BOMB', 'REARRANGE', 'DOUBLE', 'UNDO'];
+    const pick = allPowers[Math.floor(Math.random() * allPowers.length)];
+    state.powers[pick] = (state.powers[pick] || 0) + 1;
+    renderer.showPowerDrop(pick);
+  }
 
   // Update tile ages
   ageTiles(newGrid, mergeResults);
@@ -344,10 +361,11 @@ function handlePowerupTap(power) {
   state.activePower = power;
 
   if (power === 'REARRANGE') {
-    // Instant apply
     applyRearrange();
+  } else if (power === 'UNDO') {
+    applyUndo();
   } else {
-    // Enter targeting mode
+    // LASER, BOMB, DOUBLE — enter targeting mode
     state.screen = 'TARGETING';
   }
 }
@@ -362,7 +380,12 @@ function applyPowerupToCell(row, col) {
     newGrid = logic.applyLaser(state.grid, row, col);
   } else if (power === 'BOMB') {
     newGrid = logic.applyBomb(state.grid, row, col);
+  } else if (power === 'DOUBLE') {
+    if (state.grid[row][col] === 0) return; // can't double empty
+    newGrid = logic.applyDouble(state.grid, row, col);
   }
+
+  if (!newGrid) return; // safety guard
 
   state.powers[power]--;
   state.powersUsed.add(power);
@@ -371,6 +394,12 @@ function applyPowerupToCell(row, col) {
   state.grid        = newGrid;
   state.activePower = null;
   state.screen      = 'PLAYING';
+
+  // Check win after DOUBLE (could create 2048)
+  if (!state.wonAcknowledged && !state.won && logic.hasWon(state.grid, CONFIG.WIN_TILE)) {
+    handleWin();
+    return;
+  }
 
   // Check game over after powerup
   if (logic.isGameOver(state.grid)) {
@@ -388,6 +417,23 @@ function applyRearrange() {
   renderer.flashRearrange(() => {
     if (logic.isGameOver(state.grid)) setTimeout(handleGameOver, 50);
   });
+}
+
+function applyUndo() {
+  if (state.undoStack.length === 0) {
+    state.activePower = null;
+    return;
+  }
+  const snap        = state.undoStack.pop();
+  state.grid        = snap.grid;
+  state.score       = snap.score;
+  state.displayScore = snap.score;
+  state.totalMoves  = snap.totalMoves;
+  state.tileAges    = snap.tileAges;
+  state.powers.UNDO--;
+  state.powersUsed.add('UNDO');
+  state.onlyLaserUsed = false;
+  state.activePower   = null;
 }
 
 // ============================================================
@@ -476,9 +522,19 @@ function handleGameOver() {
       const pill = document.createElement('span');
       pill.className = `tag-pill-lg ${tag.css}`;
       pill.textContent = tag.label;
+      pill.dataset.tooltip = tag.desc;
       pill.style.animationDelay = `${i * CONFIG.ANIM_TAG_STAGGER}ms`;
       tagsEl.appendChild(pill);
     });
+
+    // Tap to toggle tooltip, tap same again to dismiss
+    tagsEl.addEventListener('click', e => {
+      const pill = e.target.closest('.tag-pill-lg');
+      if (!pill) return;
+      const wasOpen = pill.classList.contains('tooltip-open');
+      tagsEl.querySelectorAll('.tag-pill-lg.tooltip-open').forEach(p => p.classList.remove('tooltip-open'));
+      if (!wasOpen) pill.classList.add('tooltip-open');
+    }, { capture: true });
   }
 
   showOverlay('gameover');
@@ -512,6 +568,19 @@ function openHistory() {
   state.history = storage.getHistory();
   renderHistoryList();
   showScreen('history');
+
+  // Tag pill tooltips in history (delegate once)
+  const listEl = document.getElementById('history-list');
+  if (listEl && !listEl._tooltipBound) {
+    listEl._tooltipBound = true;
+    listEl.addEventListener('click', e => {
+      const pill = e.target.closest('.tag-pill');
+      if (!pill) return;
+      const wasOpen = pill.classList.contains('tooltip-open');
+      listEl.querySelectorAll('.tag-pill.tooltip-open').forEach(p => p.classList.remove('tooltip-open'));
+      if (!wasOpen) pill.classList.add('tooltip-open');
+    });
+  }
 }
 
 function renderHistoryList() {
@@ -544,7 +613,7 @@ function renderHistoryList() {
         const isBest = e.score === maxScore;
         const tags   = (e.tags || []).map(id => {
           const def = TAG_DEFS.find(d => d.id === id);
-          return def ? `<span class="tag-pill ${def.css}">${def.label}</span>` : '';
+          return def ? `<span class="tag-pill ${def.css}" data-tooltip="${def.desc}">${def.label}</span>` : '';
         }).join('');
 
         html += `
