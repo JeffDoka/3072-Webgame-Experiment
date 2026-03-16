@@ -216,3 +216,23 @@ export function applyBomb(grid, row, col) {
   }
   return newGrid;
 }
+
+// Apply Upgrade: find the highest-value tile and double it
+export function applyUpgrade(grid) {
+  let maxVal = 0, maxR = 0, maxC = 0;
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < grid[r].length; c++) {
+      if (grid[r][c] > maxVal) { maxVal = grid[r][c]; maxR = r; maxC = c; }
+    }
+  }
+  const newGrid = grid.map(row => [...row]);
+  if (maxVal > 0) newGrid[maxR][maxC] *= 2;
+  return { newGrid, row: maxR, col: maxC };
+}
+
+// Apply Swap: exchange the values of two cells
+export function applySwap(grid, r1, c1, r2, c2) {
+  const newGrid = grid.map(row => [...row]);
+  [newGrid[r1][c1], newGrid[r2][c2]] = [newGrid[r2][c2], newGrid[r1][c1]];
+  return newGrid;
+}

@@ -55,10 +55,14 @@ export const CONFIG = {
     REARRANGE: 1,
     DOUBLE:    1,   // doubles a single tile's value
     UNDO:      1,   // rewinds one move
+    FREEZE:  1,   // skip next tile spawn
+    UPGRADE: 1,   // auto-double the highest tile on the board
+    SWAP:    1,   // swap any two tiles (two-step targeting)
   },
 
   // ---- Power-up drop cadence ----
   POWER_DROP_EVERY: 10,  // every N moves, grant a random powerup charge
+  FREEZE_INDICATOR_COLOR: 'rgba(100,180,255,0.85)',
 
   // ---- Tag Thresholds ----
   FOSSIL_TURNS:    11,

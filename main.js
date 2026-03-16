@@ -226,6 +226,7 @@ function handleSwipe(direction) {
   // Cancel targeting on swipe
   if (state.screen === 'TARGETING') {
     state.activePower = null;
+    state.swapFirst   = null;
     state.screen      = 'PLAYING';
     return;
   }
@@ -278,8 +279,17 @@ function handleSwipe(direction) {
   // Check win BEFORE updating grid
   const justWon = !state.wonAcknowledged && !state.won && logic.hasWon(newGrid, CONFIG.WIN_TILE);
 
-  // Spawn new tile
-  const { newGrid: gridWithSpawn, spawned } = logic.spawnTile(newGrid, CONFIG.SPAWN_4_PROBABILITY);
+  // Spawn new tile (skip if FREEZE powerup consumed this move)
+  let gridWithSpawn, spawned;
+  if (state.freezeNextSpawn) {
+    state.freezeNextSpawn = false;
+    gridWithSpawn = newGrid;
+    spawned = null;
+  } else {
+    const spawnResult = logic.spawnTile(newGrid, CONFIG.SPAWN_4_PROBABILITY);
+    gridWithSpawn = spawnResult.newGrid;
+    spawned       = spawnResult.spawned;
+  }
 
   // Track minimum occupied cells after spawn — requires > 2 tiles to have been on board
   // (guards against the opening 2-tile state triggering Clean Sweep immediately)
@@ -327,6 +337,7 @@ function handleTap(x, y) {
     } else {
       // Tapped outside board — cancel
       state.activePower = null;
+      state.swapFirst   = null;
       state.screen      = 'PLAYING';
     }
     return;
@@ -364,6 +375,7 @@ function handlePowerupTap(power) {
   if (state.activePower === power) {
     // Deselect
     state.activePower = null;
+    state.swapFirst   = null;
     return;
   }
 
@@ -373,8 +385,12 @@ function handlePowerupTap(power) {
     applyRearrange();
   } else if (power === 'UNDO') {
     applyUndo();
+  } else if (power === 'FREEZE') {
+    applyFreeze();
+  } else if (power === 'UPGRADE') {
+    applyUpgrade();
   } else {
-    // LASER, BOMB, DOUBLE — enter targeting mode
+    // LASER, BOMB, DOUBLE, SWAP — enter targeting mode
     state.screen = 'TARGETING';
   }
 }
@@ -392,6 +408,16 @@ function applyPowerupToCell(row, col) {
   } else if (power === 'DOUBLE') {
     if (state.grid[row][col] === 0) return; // can't double empty
     newGrid = logic.applyDouble(state.grid, row, col);
+  } else if (power === 'SWAP') {
+    if (state.swapFirst === null) {
+      // First pick — store and stay in TARGETING
+      state.swapFirst = { row, col };
+      return;
+    } else {
+      // Second pick — apply swap (even if same cell, harmless)
+      newGrid = logic.applySwap(state.grid, state.swapFirst.row, state.swapFirst.col, row, col);
+      state.swapFirst = null;
+    }
   }
 
   if (!newGrid) return; // safety guard
@@ -443,6 +469,33 @@ function applyUndo() {
   state.powersUsed.add('UNDO');
   state.onlyLaserUsed = false;
   state.activePower   = null;
+}
+
+function applyFreeze() {
+  state.freezeNextSpawn = true;
+  state.powers.FREEZE--;
+  state.powersUsed.add('FREEZE');
+  state.onlyLaserUsed = false;
+  state.activePower   = null;
+}
+
+function applyUpgrade() {
+  const { newGrid, row, col } = logic.applyUpgrade(state.grid);
+  state.grid = newGrid;
+  state.powers.UPGRADE--;
+  state.powersUsed.add('UPGRADE');
+  state.onlyLaserUsed = false;
+  state.activePower   = null;
+
+  // Check win after UPGRADE (could create 2048)
+  if (!state.wonAcknowledged && !state.won && logic.hasWon(state.grid, CONFIG.WIN_TILE)) {
+    handleWin();
+    return;
+  }
+
+  renderer.flashCell(row, col, () => {
+    if (logic.isGameOver(state.grid)) setTimeout(handleGameOver, 50);
+  });
 }
 
 // ============================================================

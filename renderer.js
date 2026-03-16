@@ -106,6 +106,7 @@ export function render(timestamp) {
     drawTargetingOverlay(layout);
   }
 
+  if (state.freezeNextSpawn) drawFreezeIndicator(layout);
   drawPowerDropToast(layout, timestamp);
 
   // Advance phase
@@ -136,6 +137,13 @@ export function flashRearrange(callback) {
   onAnimDone = callback;
   setPhase('spawn', CONFIG.ANIM_SPAWN_MS);
   spawnCell = null; // flash whole board
+}
+
+// Flash a single cell (used for UPGRADE visual)
+export function flashCell(row, col, callback) {
+  spawnCell  = { row, col };
+  onAnimDone = callback;
+  setPhase('spawn', CONFIG.ANIM_SPAWN_MS);
 }
 
 // ---- Power-drop toast notification ----
@@ -470,11 +478,14 @@ function drawPowerupBar(layout) {
 
   // ---- Powerup definitions (extensible) ----
   const ALL_POWERS = [
-    { name: 'LASER',     icon: '⚡', label: 'LASER'   },
-    { name: 'BOMB',      icon: '💣', label: 'BOMB'    },
-    { name: 'REARRANGE', icon: '🔀', label: 'SHUFFLE' },
-    { name: 'DOUBLE',    icon: '×2', label: 'DOUBLE'  },
-    { name: 'UNDO',      icon: '↩',  label: 'UNDO'    },
+    { name: 'LASER',   icon: '⚡', label: 'LASER'   },
+    { name: 'BOMB',    icon: '💣', label: 'BOMB'    },
+    { name: 'REARRANGE',icon:'🔀', label: 'SHUFFLE' },
+    { name: 'DOUBLE',  icon: '×2', label: 'DOUBLE'  },
+    { name: 'UNDO',    icon: '↩',  label: 'UNDO'    },
+    { name: 'FREEZE',  icon: '❄',  label: 'FREEZE'  },
+    { name: 'UPGRADE', icon: '⬆',  label: 'UPGRADE' },
+    { name: 'SWAP',    icon: '↔',  label: 'SWAP'    },
   ];
 
   // Sort: non-zero charges first (desc), then zero charges
@@ -618,30 +629,58 @@ function drawTargetingOverlay(layout) {
       const { x, y } = cellTL(r, c, layout);
       const isEmpty  = state.grid[r][c] === 0;
 
-      // LASER & DOUBLE need non-empty; BOMB can target any cell
-      const valid = (power === 'BOMB') || !isEmpty;
+      // BOMB can target any cell; LASER/DOUBLE need non-empty; SWAP targets any cell
+      const valid = (power === 'BOMB' || power === 'SWAP') || !isEmpty;
       if (!valid) continue;
 
-      // Glowing highlight
+      // For SWAP, highlight the already-selected first tile in gold
+      const isSwapFirst = (power === 'SWAP' && state.swapFirst &&
+                           state.swapFirst.row === r && state.swapFirst.col === c);
+
       ctx.save();
       roundRect(ctx, x, y, cellSize, cellSize, CONFIG.TILE_RADIUS);
-      ctx.strokeStyle = `rgba(255,255,255,${0.5 + 0.5 * pulse})`;
-      ctx.lineWidth   = 3;
+      ctx.strokeStyle = isSwapFirst
+        ? `rgba(237,194,46,${0.7 + 0.3 * pulse})`
+        : `rgba(255,255,255,${0.5 + 0.5 * pulse})`;
+      ctx.lineWidth = isSwapFirst ? 4 : 3;
       ctx.stroke();
       if (!isEmpty) {
-        ctx.fillStyle = `rgba(255,255,255,${0.08 + 0.08 * pulse})`;
+        ctx.fillStyle = isSwapFirst
+          ? `rgba(237,194,46,${0.15 + 0.1 * pulse})`
+          : `rgba(255,255,255,${0.08 + 0.08 * pulse})`;
         ctx.fill();
       }
       ctx.restore();
     }
   }
 
-  // Cancel hint text
+  // Hint text
+  let hint = 'Tap a tile  ·  Swipe to cancel';
+  if (power === 'SWAP') {
+    hint = state.swapFirst ? 'Tap second tile  ·  Swipe to cancel' : 'Tap first tile  ·  Swipe to cancel';
+  }
   ctx.fillStyle    = 'rgba(255,255,255,0.85)';
   ctx.font         = `bold 13px ${CONFIG.FONT_FAMILY}`;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('Tap a tile  ·  Swipe to cancel', boardX + boardSize / 2, boardY - 14);
+  ctx.fillText(hint, boardX + boardSize / 2, boardY - 14);
+}
+
+// ============================================================
+// DRAWING — Freeze Active Indicator
+// ============================================================
+
+function drawFreezeIndicator(layout) {
+  const { boardX, boardY, boardSize } = layout;
+  const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 400);
+  ctx.save();
+  ctx.globalAlpha = 0.7 + 0.3 * pulse;
+  ctx.fillStyle   = 'rgba(100,200,255,0.92)';
+  ctx.font        = `bold 11px ${CONFIG.FONT_FAMILY}`;
+  ctx.textAlign   = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('❄ SPAWN FROZEN', boardX + boardSize / 2, boardY - 14);
+  ctx.restore();
 }
 
 // ============================================================

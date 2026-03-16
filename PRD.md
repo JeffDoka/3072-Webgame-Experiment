@@ -1,6 +1,6 @@
 # PRD: 2048 Web Game — "The Master Spec"
 
-**Version:** 5.0
+**Version:** 6.0
 **Date:** 2026-03-16
 **Author:** Jeff Boss
 **Status:** Approved / Finalized
@@ -72,6 +72,9 @@ To ensure 2048 feels correct, the `logic.js` must follow this sequence for a mov
 - **Rearrange:** `flatten(grid) -> shuffle() -> unflatten(grid)`. Fisher-Yates.
 - **Double:** `grid[y][x] *= 2`. Doubles a single tile's value. Requires non-empty cell. Enters targeting mode.
 - **Undo:** Restores the last snapshot from the undo stack (up to 3 moves back). Instant — no targeting.
+- **Freeze:** Sets `freezeNextSpawn = true`. The next tile spawn after a move is skipped. Instant. A "❄ SPAWN FROZEN" indicator pulses above the board until consumed.
+- **Upgrade:** Finds the single highest-value tile on the board and doubles it automatically. Instant — no targeting. Triggers a scale-pop flash on the upgraded tile. Can trigger the Win overlay.
+- **Swap:** Two-step targeting. Tap any first tile (highlighted in gold), then tap any second tile. Their values are exchanged. Both empty and occupied cells are valid targets.
 
 ### 5.3 Power Drop System
 Every `CONFIG.POWER_DROP_EVERY` (10) valid moves, a random powerup charge is granted. A brief animated toast notification floats up from the centre of the board indicating the drop (e.g., "+1 ⚡ Laser"). The drop occurs regardless of whether powerups are currently being used.
@@ -130,11 +133,14 @@ export const CONFIG = {
 
   // Powerup Charges
   POWERS: {
-    LASER: 2,
-    BOMB: 1,
-    REARRANGE: 1,
-    DOUBLE: 1,    // doubles a single tile's value
-    UNDO: 1,      // rewinds one move (up to 3 undos stored)
+    LASER:   2,   // remove one tile
+    BOMB:    1,   // wipe 3×3 area
+    REARRANGE: 1, // Fisher-Yates shuffle of all tiles
+    DOUBLE:  1,   // double a selected tile
+    UNDO:    1,   // rewind one move (up to 3 stored)
+    FREEZE:  1,   // skip the next tile spawn
+    UPGRADE: 1,   // auto-double the highest tile on the board
+    SWAP:    1,   // exchange two tiles (two-step targeting)
   },
 
   // Power-drop cadence
@@ -231,7 +237,7 @@ Tags are evaluated in `tags.js` at the moment of Game Over.
 
 ---
 
-## 12. Future Roadmap (v6.0+)
+## 12. Future Roadmap (v7.0+)
 - **Skins:** "Retro", "Neon", "Crystal Chaos" (gem icons).
 - **Sound:** Tactile clicks for slides, "ding" for merges.
 - **Online Leaderboard:** Optional cloud sync of daily bests.
