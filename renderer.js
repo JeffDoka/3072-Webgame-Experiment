@@ -35,11 +35,12 @@ let onAnimDone = null;
 // ---- Hit-areas (for input module) ----
 // Populated each render so input.js can do hit-testing
 export let hitAreas = {
-  powerups: [],   // [{name, x,y,w,h}]  — absolute canvas coords
-  quitBtn:  null, // {x,y,w,h}
-  cells:    [],   // [{row,col,x,y,w,h}] — used during TARGETING
-  arrows:   [],   // [{dir, x,y,w,h}]    — directional bumper buttons
-  barRect:  null, // {x,y,w,h}           — full powerup bar area for drag detection
+  powerups:    [],   // [{name, x,y,w,h}]  — absolute canvas coords
+  quitBtn:     null, // {x,y,w,h}
+  cells:       [],   // [{row,col,x,y,w,h}] — used during TARGETING
+  arrows:      [],   // [{dir, x,y,w,h}]    — directional bumper buttons
+  barRect:     null, // {x,y,w,h}           — full powerup bar area for drag detection
+  scrollTrack: null, // {x,y,w,h,maxScroll} — scroll indicator track for click-to-jump
 };
 
 // ---- Powerup bar scroll state ----
@@ -572,6 +573,9 @@ function drawPowerupBar(layout) {
     const thumbW      = Math.max(28, trackW * (barW / contentW));
     const thumbX      = trackX + (barScrollX / maxScroll) * (trackW - thumbW);
 
+    // Register a generous hit area around the track for click-to-jump
+    hitAreas.scrollTrack = { x: trackX, y: indicatorY - 8, w: trackW, h: 16, maxScroll, thumbW };
+
     // Track
     ctx.save();
     ctx.globalAlpha = 0.25;
@@ -587,6 +591,8 @@ function drawPowerupBar(layout) {
     ctx.roundRect(thumbX, indicatorY, thumbW, 3, 1.5);
     ctx.fill();
     ctx.restore();
+  } else {
+    hitAreas.scrollTrack = null;
   }
 }
 

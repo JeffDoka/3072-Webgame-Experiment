@@ -339,6 +339,15 @@ function handleTap(x, y) {
     const arrowDir = input.hitTestArrow(x, y);
     if (arrowDir) { handleSwipe(arrowDir); return; }
 
+    // Scroll track click-to-jump
+    const st = renderer.hitAreas.scrollTrack;
+    if (st && x >= st.x && x <= st.x + st.w && y >= st.y && y <= st.y + st.h) {
+      // Map click position along track to a scroll ratio, centering the thumb on the click
+      const ratio = Math.max(0, Math.min(1, (x - st.x - st.thumbW / 2) / (st.w - st.thumbW)));
+      renderer.setBarScroll(ratio * st.maxScroll);
+      return;
+    }
+
     const power = input.hitTestPowerup(x, y);
     if (power) handlePowerupTap(power);
   }
