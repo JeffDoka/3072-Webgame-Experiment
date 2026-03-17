@@ -27,11 +27,11 @@ export const CONFIG = {
       16:     { bg: '#656D4A', text: '#EDE0D4' },  // Reseda    — tier 3
       32:     { bg: '#414833', text: '#EDE0D4' },  // Ebony     — tier 4
       64:     { bg: '#2d3320', text: '#EDE0D4' },  // Deep ebony — tier 5
-      128:    { bg: '#edcf72', text: '#EDE0D4', glow: 'rgba(237,207,114,0.55)', glowRadius: 14 },
-      256:    { bg: '#edcc61', text: '#EDE0D4', glow: 'rgba(237,204,97,0.60)',  glowRadius: 18 },
-      512:    { bg: '#edc850', text: '#EDE0D4', glow: 'rgba(237,200,80,0.65)',  glowRadius: 22 },
-      1024:   { bg: '#edc53f', text: '#EDE0D4', glow: 'rgba(237,197,63,0.70)',  glowRadius: 26 },
-      2048:   { bg: '#edc22e', text: '#EDE0D4', glow: 'rgba(237,194,46,0.80)',  glowRadius: 32 },
+      128:    { bg: '#edcf72', text: '#414833', glow: 'rgba(237,207,114,0.55)', glowRadius: 14 },
+      256:    { bg: '#edcc61', text: '#414833', glow: 'rgba(237,204,97,0.60)',  glowRadius: 18 },
+      512:    { bg: '#edc850', text: '#414833', glow: 'rgba(237,200,80,0.65)',  glowRadius: 22 },
+      1024:   { bg: '#edc53f', text: '#414833', glow: 'rgba(237,197,63,0.70)',  glowRadius: 26 },
+      2048:   { bg: '#edc22e', text: '#414833', glow: 'rgba(237,194,46,0.80)',  glowRadius: 32 },
       '4096+':{ bg: '#7F5539', text: '#EDE0D4', glow: 'rgba(127,85,57,0.55)',   glowRadius: 20 },
     },
   },
@@ -67,19 +67,19 @@ export const CONFIG = {
 
   // ---- Powerup Charges ----
   POWERS: {
-    LASER:     2,
-    BOMB:      1,
-    REARRANGE: 1,
-    DOUBLE:    1,   // doubles a single tile's value
-    UNDO:      1,   // rewinds one move
-    FREEZE:  1,   // skip next tile spawn
-    UPGRADE: 1,   // auto-double the highest tile on the board
-    SWAP:    1,   // swap any two tiles (two-step targeting)
+    LASER:     2,   // remove one tile
+    BOMB:      1,   // wipe 3x3 area
+    REARRANGE: 1,   // Fisher-Yates shuffle all tiles
+    DOUBLE:    1,   // double a single tile's value
+    UNDO:      1,   // rewind one move
+    FREEZE:    1,   // skip next tile spawn
+    UPGRADE:   1,   // auto-double the highest tile
+    SWAP:      1,   // swap any two tiles (two-step targeting)
   },
 
   // ---- Power-up drop cadence ----
   POWER_DROP_EVERY: 10,  // every N moves, grant a random powerup charge
-  FREEZE_INDICATOR_COLOR: 'rgba(100,180,255,0.85)',
+  FREEZE_INDICATOR_COLOR: 'rgba(100,200,255,0.92)',
 
   // ---- Tag Thresholds ----
   FOSSIL_TURNS:    11,
@@ -107,7 +107,7 @@ export const CONFIG = {
 
 // Tile color lookup — maps by tier so any base tile uses the standard palette.
 // tier = log2(value / baseTile): 3→tier 0 (color of "2"), 6→tier 1 ("4"), etc.
-export function getTileColors(value, baseTile = 2) {
+export function getTileColors(value, baseTile = CONFIG.BASE_TILE) {
   const TIER_KEYS = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, '4096+'];
   const tier = Math.max(0, Math.round(Math.log2(value / baseTile)));
   const key  = tier < TIER_KEYS.length ? TIER_KEYS[tier] : '4096+';

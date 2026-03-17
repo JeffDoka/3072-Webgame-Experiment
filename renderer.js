@@ -163,12 +163,25 @@ export function flashCell(row, col, callback) {
   setPhase('spawn', CONFIG.ANIM_SPAWN_MS);
 }
 
+// ---- Powerup icon/label definitions (single source of truth) ----
+const POWER_META = {
+  LASER:     { icon: '⚡', label: 'LASER' },
+  BOMB:      { icon: '💣', label: 'BOMB' },
+  REARRANGE: { icon: '🔀', label: 'SHUFFLE' },
+  DOUBLE:    { icon: '×2', label: 'DOUBLE' },
+  UNDO:      { icon: '↩',  label: 'UNDO' },
+  FREEZE:    { icon: '❄',  label: 'FREEZE' },
+  UPGRADE:   { icon: '⬆',  label: 'UPGRADE' },
+  SWAP:      { icon: '↔',  label: 'SWAP' },
+};
+const ALL_POWER_NAMES = Object.keys(POWER_META);
+
 // ---- Power-drop toast notification ----
 let powerDropToast = null; // { text, alpha, startTime }
 
 export function showPowerDrop(powerName) {
-  const labels = { LASER: '⚡ Laser', BOMB: '💣 Bomb', REARRANGE: '🔀 Shuffle', DOUBLE: '×2 Double', UNDO: '↩ Undo', FREEZE: '❄ Freeze', UPGRADE: '⬆ Upgrade', SWAP: '↔ Swap' };
-  powerDropToast = { text: `+1 ${labels[powerName] || powerName}`, alpha: 1, startTime: performance.now() };
+  const meta = POWER_META[powerName];
+  powerDropToast = { text: `+1 ${meta ? meta.icon + ' ' + meta.label : powerName}`, alpha: 1, startTime: performance.now() };
 }
 
 export function getLayout() {
@@ -235,9 +248,9 @@ function cellTL(row, col, layout) {
 // DRAWING — Background
 // ============================================================
 
-function drawBackground({ w, h }) {
+function drawBackground(_layout) {
   ctx.fillStyle = CONFIG.COLORS.BG;
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(0, 0, logW, logH); // full canvas — including area behind the discovery panel
 }
 
 // ============================================================
@@ -263,8 +276,8 @@ function drawHeader({ w, h, HEADER_H }) {
   ctx.fillText(isMobile ? '✕' : 'QUIT', qX + qW / 2, qY + qH / 2);
   hitAreas.quitBtn = { x: qX, y: qY, w: qW, h: qH };
 
-  // Score boxes — centred
-  const boxW = 58, boxH = 40, gap = 8;
+  // Score boxes — centred (72px wide for legibility at high scores)
+  const boxW = 72, boxH = 40, gap = 8;
   const totalW = boxW * 2 + gap;
   const bx = (w - totalW) / 2;
   const by = cy - boxH / 2;
@@ -277,8 +290,8 @@ function drawScoreBox(x, y, w, h, label, value) {
   ctx.fillStyle = CONFIG.COLORS.BOARD_BG;
   ctx.fill();
 
-  ctx.fillStyle    = 'rgba(249,246,242,0.60)';
-  ctx.font         = `bold 8px ${CONFIG.FONT_FAMILY}`;
+  ctx.fillStyle    = 'rgba(249,246,242,0.70)';
+  ctx.font         = `bold 10px ${CONFIG.FONT_FAMILY}`;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, x + w / 2, y + 11);
@@ -446,7 +459,7 @@ function drawSlide(layout, t) {
 // ============================================================
 
 function drawTile(x, y, size, value, scale = 1, alpha = 1) {
-  const baseTile = state.settings.baseTile || 2;
+  const baseTile = state.settings.baseTile || CONFIG.BASE_TILE;
   const colors   = getTileColors(value, baseTile);
 
   ctx.save();
@@ -520,20 +533,11 @@ function drawPowerupBar(layout) {
   // Expose bar rect for drag detection in input.js
   hitAreas.barRect = { x: barX, y: barY, w: barW, h: barH };
 
-  // ---- Powerup definitions (extensible) ----
-  const ALL_POWERS = [
-    { name: 'LASER',   icon: '⚡', label: 'LASER'   },
-    { name: 'BOMB',    icon: '💣', label: 'BOMB'    },
-    { name: 'REARRANGE',icon:'🔀', label: 'SHUFFLE' },
-    { name: 'DOUBLE',  icon: '×2', label: 'DOUBLE'  },
-    { name: 'UNDO',    icon: '↩',  label: 'UNDO'    },
-    { name: 'FREEZE',  icon: '❄',  label: 'FREEZE'  },
-    { name: 'UPGRADE', icon: '⬆',  label: 'UPGRADE' },
-    { name: 'SWAP',    icon: '↔',  label: 'SWAP'    },
-  ];
+  // Build power list from the single POWER_META source
+  const allPowers = ALL_POWER_NAMES.map(name => ({ name, ...POWER_META[name] }));
 
   // Sort: highest charge count on the left
-  const sorted = [...ALL_POWERS].sort((a, b) => {
+  const sorted = [...allPowers].sort((a, b) => {
     const ca = state.powers[a.name] ?? 0;
     const cb = state.powers[b.name] ?? 0;
     return cb - ca;
@@ -713,17 +717,6 @@ function drawTargetingOverlay(layout) {
 // DRAWING — Power-drop 3-Choice Picker
 // ============================================================
 
-const POWER_META = {
-  LASER:    { icon: '⚡', label: 'LASER'   },
-  BOMB:     { icon: '💣', label: 'BOMB'    },
-  REARRANGE:{ icon: '🔀', label: 'SHUFFLE' },
-  DOUBLE:   { icon: '×2', label: 'DOUBLE'  },
-  UNDO:     { icon: '↩',  label: 'UNDO'    },
-  FREEZE:   { icon: '❄',  label: 'FREEZE'  },
-  UPGRADE:  { icon: '⬆',  label: 'UPGRADE' },
-  SWAP:     { icon: '↔',  label: 'SWAP'    },
-};
-
 function drawPowerDropPicker(layout) {
   const { w, h } = layout;
 
@@ -741,7 +734,7 @@ function drawPowerDropPicker(layout) {
   const cardY = (h - cardH) / 2;
 
   roundRect(ctx, cardX, cardY, cardW, cardH, 20);
-  ctx.fillStyle = '#faf8ef';
+  ctx.fillStyle = CONFIG.COLORS.BG;  // Almond — stays on-palette
   ctx.fill();
   ctx.strokeStyle = 'rgba(187,173,160,0.55)';
   ctx.lineWidth = 1.5;
@@ -797,7 +790,7 @@ function drawFreezeIndicator(layout) {
   const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 400);
   ctx.save();
   ctx.globalAlpha = 0.7 + 0.3 * pulse;
-  ctx.fillStyle   = 'rgba(100,200,255,0.92)';
+  ctx.fillStyle   = CONFIG.FREEZE_INDICATOR_COLOR;
   ctx.font        = `bold 11px ${CONFIG.FONT_FAMILY}`;
   ctx.textAlign   = 'center';
   ctx.textBaseline = 'middle';
@@ -874,7 +867,7 @@ function nextPhase(timestamp) {
   }
 }
 
-function goToSpawnOrDone(timestamp) {
+function goToSpawnOrDone() {
   if (spawnCell) {
     setPhase('spawn', CONFIG.ANIM_SPAWN_MS);
   } else {

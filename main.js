@@ -24,13 +24,15 @@ function preloadAllMedia() {
   });
 }
 
+// Cached set of tile values that have catalog entries (avoids recomputing on every move)
+const CATALOG_VALUES = new Set(Object.keys(CONFIG.MEDIA_CATALOG).map(Number));
+
 // Check grid for newly discovered catalog tiles — call after every grid change
 function checkDiscoveries() {
-  const catalogValues = Object.keys(CONFIG.MEDIA_CATALOG).map(Number);
   const newOnes = [];
 
   state.grid.forEach(row => row.forEach(v => {
-    if (v > 0 && catalogValues.includes(v) && !state.discoveredTiles.has(v)) {
+    if (v > 0 && CATALOG_VALUES.has(v) && !state.discoveredTiles.has(v)) {
       state.discoveredTiles.add(v);
       newOnes.push(v);
     }
@@ -85,7 +87,8 @@ function renderDiscoveryPanel(highlightValues = []) {
 
     card.innerHTML = `
       <img class="disc-thumb" src="${entry.img}" alt="${entry.title}" loading="lazy" />
-      <span class="disc-title">${entry.title}</span>`;
+      <span class="disc-title">${entry.title}</span>
+      <span class="disc-num">${val}</span>`;
 
     inner.appendChild(card);
 
@@ -433,7 +436,12 @@ function handleSwipe(direction) {
   // Power drop every N moves — show 3-choice picker
   if (state.powersEnabled && state.totalMoves % CONFIG.POWER_DROP_EVERY === 0) {
     const allPowers = ['LASER', 'BOMB', 'REARRANGE', 'DOUBLE', 'UNDO', 'FREEZE', 'UPGRADE', 'SWAP'];
-    const shuffled = [...allPowers].sort(() => Math.random() - 0.5);
+    // Fisher-Yates shuffle for unbiased selection
+    const shuffled = [...allPowers];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
     state.powerDropChoices = shuffled.slice(0, 3);
   }
 
@@ -605,7 +613,6 @@ function applyPowerupToCell(row, col) {
 
   state.powers[power]--;
   state.powersUsed.add(power);
-  if (power !== 'LASER') state.onlyLaserUsed = false;
 
   state.grid        = newGrid;
   state.activePower = null;
@@ -630,7 +637,6 @@ function applyRearrange() {
   state.grid = logic.rearrangeGrid(state.grid);
   state.powers.REARRANGE--;
   state.powersUsed.add('REARRANGE');
-  state.onlyLaserUsed  = false;
   state.activePower    = null;
 
   renderer.flashRearrange(() => {
@@ -651,7 +657,6 @@ function applyUndo() {
   state.tileAges    = snap.tileAges;
   state.powers.UNDO--;
   state.powersUsed.add('UNDO');
-  state.onlyLaserUsed = false;
   state.activePower   = null;
 }
 
@@ -659,7 +664,6 @@ function applyFreeze() {
   state.freezeNextSpawn = true;
   state.powers.FREEZE--;
   state.powersUsed.add('FREEZE');
-  state.onlyLaserUsed = false;
   state.activePower   = null;
 }
 
@@ -668,7 +672,6 @@ function applyUpgrade() {
   state.grid = newGrid;
   state.powers.UPGRADE--;
   state.powersUsed.add('UPGRADE');
-  state.onlyLaserUsed = false;
   state.activePower   = null;
 
   // Check win after UPGRADE (could create 2048)
@@ -738,6 +741,7 @@ function handleGameOver() {
     minOccupiedCells: state.minOccupiedCells,
     maxTileAge,
     won:              state.won,
+    winTile:          state.winTile,
   });
 
   // ---- Compute tag score bonuses ----
@@ -811,14 +815,17 @@ function handleGameOver() {
       tagsEl.appendChild(pill);
     });
 
-    // Tap to toggle tooltip, tap same again to dismiss
-    tagsEl.addEventListener('click', e => {
-      const pill = e.target.closest('.tag-pill-lg');
-      if (!pill) return;
-      const wasOpen = pill.classList.contains('tooltip-open');
-      tagsEl.querySelectorAll('.tag-pill-lg.tooltip-open').forEach(p => p.classList.remove('tooltip-open'));
-      if (!wasOpen) pill.classList.add('tooltip-open');
-    }, { capture: true });
+    // Tap to toggle tooltip — guarded to prevent listener stacking across game-overs
+    if (!tagsEl._tooltipBound) {
+      tagsEl._tooltipBound = true;
+      tagsEl.addEventListener('click', e => {
+        const pill = e.target.closest('.tag-pill-lg');
+        if (!pill) return;
+        const wasOpen = pill.classList.contains('tooltip-open');
+        tagsEl.querySelectorAll('.tag-pill-lg.tooltip-open').forEach(p => p.classList.remove('tooltip-open'));
+        if (!wasOpen) pill.classList.add('tooltip-open');
+      }, { capture: true });
+    }
   }
 
   showOverlay('gameover');

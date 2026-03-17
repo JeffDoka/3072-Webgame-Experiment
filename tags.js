@@ -25,16 +25,16 @@ export const TAG_DEFS = [
   {
     id:    'summit',
     label: '🏔 Summit',
-    desc:  `Reached the ${CONFIG.WIN_TILE} tile`,
+    desc:  'Reached the win tile',
     css:   'tag-summit',
-    test:  ({ maxTile }) => maxTile >= CONFIG.WIN_TILE,
+    test:  ({ maxTile, winTile }) => maxTile >= winTile,
   },
   {
     id:    'overclock',
     label: '🌋 Overclock',
-    desc:  `Reached ${CONFIG.WIN_TILE * 2} or higher`,
+    desc:  'Reached double the win tile or higher',
     css:   'tag-overclock',
-    test:  ({ maxTile }) => maxTile >= CONFIG.WIN_TILE * 2,
+    test:  ({ maxTile, winTile }) => maxTile >= winTile * 2,
   },
   {
     id:    'tortoise',
@@ -46,10 +46,10 @@ export const TAG_DEFS = [
   {
     id:    'speedrun',
     label: '⚡ Speedrun',
-    desc:  `Hit 2048 in ${CONFIG.SPEEDRUN_MOVES} moves or fewer`,
+    desc:  `Hit the win tile in ${CONFIG.SPEEDRUN_MOVES} moves or fewer`,
     css:   'tag-speedrun',
-    test:  ({ maxTile, totalMoves }) =>
-      maxTile >= CONFIG.WIN_TILE && totalMoves <= CONFIG.SPEEDRUN_MOVES,
+    test:  ({ maxTile, totalMoves, winTile }) =>
+      maxTile >= winTile && totalMoves <= CONFIG.SPEEDRUN_MOVES,
   },
   {
     id:    'cleansweep',
@@ -65,9 +65,7 @@ export const TAG_DEFS = [
     css:   'tag-surgeon',
     test:  ({ powersUsed }) =>
       powersUsed.size > 0 &&
-      powersUsed.has('LASER') &&
-      !powersUsed.has('BOMB') &&
-      !powersUsed.has('REARRANGE'),
+      [...powersUsed].every(p => p === 'LASER'),
   },
 ];
 
@@ -81,10 +79,12 @@ export const TAG_DEFS = [
  * @param {boolean} snap.powersEnabled
  * @param {number}  snap.minOccupiedCells
  * @param {number}  snap.maxTileAge
+ * @param {number}  snap.winTile — runtime win tile (baseTile × 1024)
  * @returns {Array} Matching TAG_DEF objects
  */
 export function evaluateTags(snap) {
+  const winTile = snap.winTile || CONFIG.WIN_TILE;
   return TAG_DEFS.filter(def => {
-    try { return def.test(snap); } catch { return false; }
+    try { return def.test({ ...snap, winTile }); } catch { return false; }
   });
 }

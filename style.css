@@ -215,9 +215,9 @@ html, body {
 
 .btn-secondary {
   background: var(--board-bg);
-  color: var(--text-dark);
+  color: var(--text-light);
 }
-.btn-secondary:hover { filter: brightness(1.05); }
+.btn-secondary:hover { filter: brightness(1.15); }
 
 .btn-danger {
   background: var(--btn-danger);
@@ -427,7 +427,6 @@ html, body {
   font-weight: 600;
   padding: 6px 12px;
   border-radius: 8px;
-  white-space: nowrap;
   pointer-events: none;
   opacity: 0;
   transition: opacity 150ms, transform 150ms;
@@ -820,7 +819,7 @@ input[type="range"] {
   right: 0;        /* overridden by JS */
   height: 0;
   overflow: hidden;
-  background: rgba(44, 49, 32, 0.97);
+  background: rgba(65, 72, 51, 0.97);  /* Ebony on-palette */
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(237,224,212,0.14);
@@ -892,7 +891,7 @@ input[type="range"] {
   display: block;
 }
 
-/* Title only — no description in strip view */
+/* Title */
 .disc-title {
   font-size: 11px;
   font-weight: 700;
@@ -902,6 +901,20 @@ input[type="range"] {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Tile-value badge on the right side of each card */
+.disc-num {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--almond);
+  background: rgba(237,224,212,0.12);
+  border: 1px solid rgba(237,224,212,0.18);
+  border-radius: 5px;
+  padding: 2px 7px;
+  letter-spacing: 0.3px;
+  opacity: 0.7;
 }
 
 /* NEW dot indicator */

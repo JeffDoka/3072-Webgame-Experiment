@@ -39,7 +39,6 @@ export const state = {
 
   // ---- Tag tracking (gathered throughout the game) ----
   minOccupiedCells: 16,   // for Clean Sweep: lowest count in any single turn
-  onlyLaserUsed:    true, // stays true until non-laser power used
 
   // ---- Undo history (stores snapshots for UNDO powerup) ----
   undoStack: [],  // [{grid, score, totalMoves, tileAges}] — max 3 deep
@@ -106,7 +105,6 @@ export function startNewGame() {
   state.powersEnabled = state.settings.powersEnabled ?? true;
 
   state.minOccupiedCells = N * N;
-  state.onlyLaserUsed    = true;
   state.undoStack        = [];
   state.freezeNextSpawn  = false;
   state.swapFirst        = null;
