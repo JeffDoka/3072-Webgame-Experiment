@@ -15,7 +15,7 @@ import * as input           from './input.js';
 // DISCOVERY SYSTEM
 // ============================================================
 
-const DISC_PANEL_H = 148; // must match .discovery-panel.visible height in CSS
+const DISC_PANEL_H = 56; // must match .discovery-panel.visible height in CSS
 
 // Preload all catalog images on startup so tiles show art immediately
 function preloadAllMedia() {
@@ -83,12 +83,7 @@ function renderDiscoveryPanel(highlightValues = []) {
 
     card.innerHTML = `
       <img class="disc-thumb" src="${entry.img}" alt="${entry.title}" loading="lazy" />
-      <div class="disc-info">
-        <span class="disc-tile-badge">Tile ${val}</span>
-        <span class="disc-title">${entry.title}</span>
-        <span class="disc-desc">${entry.desc}</span>
-        <span class="disc-link-hint">channel3.gg ↗</span>
-      </div>`;
+      <span class="disc-title">${entry.title}</span>`;
 
     inner.appendChild(card);
 
